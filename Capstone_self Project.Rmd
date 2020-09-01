@@ -26,7 +26,7 @@ The constraints we would soon discover on the data set is that it is an highly i
 The initial step is to load the required libraries and download the dataset. This is followed by exploratory analysis where we learn more on the dataset and its features. During this step we observed the high unbalance that exists in the data set. Hence, before proceeding further with model building exercise, the step undertaken was to incorporate oversampling and undersampling methodologies to convert the dataset to a more balanced one. Later we proceed with building familiar data models that was learnt through this course. Finally, the 'area under curve' is used to determine the best performing mode
 
 
-STEP 1: Installing the required libraries 
+STEP 1: INSTALLING THE REQUIRED LIBRARIES 
 
 ```{r results='hide',warning=FALSE,message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -54,7 +54,7 @@ library(tibble)
 ```
 
 
-STEP 2: Importing the data set
+STEP 2: IMPORTING THE DATA SET
 
 In this section we are loading the dataset directly from online data source. 
 
@@ -71,7 +71,7 @@ unlink(temp)
 
 ```
 
-STEP 3: Exploratory data analysis
+STEP 3: EXPLORATORY DATA ANALYSIS
 
 Before building any data science model it is key to build an understanding of the dataset. In the section we try to explore the key parameters of the data set including the number of observations, features etc. 
 
@@ -86,7 +86,7 @@ str(credit_data) #Structure of the data set
 
 ```
 
-STEP 4: Visualisation and Insights
+STEP 4: VISUALISATION AND INSIGHTS
 
 In this section we dive deep into the data set and use visualiosation techniques to generate insights which would later help us in building data models. 
 
