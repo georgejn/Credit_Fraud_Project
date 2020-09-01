@@ -1,0 +1,418 @@
+
+#INTRODUCTION:
+  
+#This project is submitted as part of final capstone project towards completion of data science certification by HBX. The data set used for this project is 'Credit card fraud detection' from kaggle. Below are few details on the content as described by kaggle:
+  
+#The datasets contains transactions made by credit cards in September 2013 by european cardholders.This dataset presents transactions that occurred in two days, where we have 492 frauds out of 284,807 transactions. The dataset is highly unbalanced, the positive class (frauds) account for only 0.172% of all transactions.
+
+#It contains only numerical input variables which are the result of a PCA transformation. Unfortunately, due to confidentiality issues, the original features and more background information about the data is not provided. Features V1, V2, … V28 are the principal components obtained with PCA, the only features which have not been transformed with PCA are 'Time' and 'Amount'. Feature 'Time' contains the seconds elapsed between each transaction and the first transaction in the dataset. The feature 'Amount' is the transaction Amount, this feature can be used for example-dependant cost-senstive learning. Feature 'Class' is the response variable and it takes value 1 in case of fraud and 0 otherwise.
+
+#[Courtesy: Kaggle]
+
+#OBJECTIVE:
+  
+#The objective of this project is to identified fraudulent credit card transactions. It is important for credit card companies to be able to identify fraudulent credit card transactions so that customers are not charged for the items they did not purchase.
+
+#APPROACH:
+  
+#The constraints we would soon discover on the data set is that it is an highly imbalanced data  set. This means that an higher accuracy number doesn't necessarily translate to a good model. We would need to manipulate the data in such a way that the model generated can help us with our goal of identifying fraudulent transactions. Further, we have used  the  area under curve as a metric to determine the best model.
+
+#The initial step is to load the required libraries and download the dataset. This is followed by exploratory analysis where we learn more on the dataset and its features. During this step we observed the high unbalance that exists in the data set. Hence, before proceeding further with model building exercise, the step undertaken was to incorporate oversampling and undersampling methodologies to convert the dataset to a more balanced one. Later we proceed with building familiar data models that was learnt through this course. Finally, the 'area under curve' is used to determine the best performing mode
+
+
+#STEP 1: INSTALLING THE REQUIRED LIBRARIES 
+
+
+
+#Include library installations
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org") 
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project")
+if(!require(ROSE)) install.packages("ROSE", repos = "http://cran.us.r-project")
+if(!require(pROC)) install.packages("pROC", repos = "http://cran.us.r-project")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project")
+if(!require(dplyr)) install.packages("rpart", repos = "http://cran.us.r-project")
+if(!require(tibble)) install.packages("rpart", repos = "http://cran.us.r-project")
+library(caret)
+library(pROC)
+library(ROSE)
+library(data.table)
+library(rpart.plot)
+library(randomForest)
+library(tidyverse)
+library(dplyr)
+library(tibble)
+
+
+
+#STEP 2: IMPORTING THE DATA SET
+
+#In this section we are loading the dataset directly from online data source. 
+
+
+
+#Loading data set from online source
+
+temp <- tempfile()
+download.file("https://storage.googleapis.com/download.tensorflow.org/data/creditcard.csv", temp)
+credit_data <- read.csv(temp) #dataset assigned to credit_data
+unlink(temp)
+
+
+
+#STEP 3: EXPLORATORY DATA ANALYSIS
+
+#Before building any data science model it is key to build an understanding of the dataset. In the section we try to explore the key parameters of the data set including the number of observations, features etc. 
+
+#The dataset has overall 284807 observations and 31 variables.We observe that there are 30 variables and one class variables which is an intege. Class variable is Zero for a fair/true or legit transaction and one for fraudulant transaction.As per the dataset, the features V1 to V28 are principle components obtained with PCA. The only features which are not transformed are time and amount (PCA is a linear combination of actual variables done to keep confidentiality of the data)
+
+
+
+head(credit_data) #View  the first few observations of the data set
+dim(credit_data)  #Dimensions of the dataset
+str(credit_data) #Structure of the data set
+
+
+
+#STEP 4: VISUALISATION AND INSIGHTS
+
+#In this section we dive deep into the data set and use visualiosation techniques to generate insights which would later help us in building data models. 
+
+
+#4.1: It would be interesting to look at how different features vary on the legitimate (Class = "0") and fraud (Class = "1") transactions. Lets do this first for two physically meaningfull features Time and amount.
+
+
+#Fraud/Legit transactions v/s Time:
+
+#From the plaots we observe fall in density of true transation in the beginning of both months (From the dataset its know that the overall period is for 2 months), probably because of the pay/wage/salary being credited. 
+
+
+# Splitting the dataset to true/legit and false/fraud transactions
+
+credit_data.true <- credit_data[credit_data$Class ==  0, ]
+credit_data.false <- credit_data[credit_data$Class ==  1, ]
+
+#Plotting both true and false observations v/s time
+
+library(ggplot2)
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=Time), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=Time), color = "red", fill = "red", alpha = 0.1)
+
+#From the dataset its know that the overall period is for 2 months. We see fall in density of true transation in the beginning of both months, probably because of the pay/wage/salary being credited
+
+
+#Fraud/Legit transactions v/s Amount
+
+#From the plots its observed that the fraudent transactions are seen till higher amounts whereas true transactions drops considerably towards higher amount making the average fradulant transation amount higher than average true transaction
+
+
+
+#Plotting both true and false observations v/s amount
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=Amount), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=Amount), color = "red", fill = "red", alpha = 0.1)
+
+#Very skewed plot, we may have to change the scale to logarithmic for better insights
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=Amount), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=Amount), color = "red", fill = "red", alpha = 0.1) +
+  scale_x_continuous(trans = 'log10')
+
+#After logrithemic transformation of the x axis, it is interesting to observe that the fraud transactions peaks around two amounts in the dataset. Also the fraudent transactions goes till higher amounts whereas true transactions drops considerably towards higher amount making the average fradulant transation amount higher than average true transaction
+
+
+
+#4.2: Density function of few other features for fraud and legit transactions
+
+#After plotting similar density plots for other features, few important observations from some of these features are being analysed below. Please note that only selected features that provided interesting inputs are being included to keep the analysis brief
+
+#1) If the V9 value is less than ~-5 the transation has high probablity of being fraud
+
+#2) From the below plots, similar observation as above is seen for featurs V10 and V14
+
+#3) The true and fraud density plots for V15 and V25 overlap each other indicating that these features might not much value in the prediction of true/fraud transactions
+
+
+
+#Density plot of Feature V9 for true and fraud transactions
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=V9), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=V9), color = "red", fill = "red", alpha = 0.1)
+
+#The legitimate transaction has a high peak around 0, whereas most of the fraud transactions are around negative values. We can say that if the V9 value is less than ~-5 the transation has high probablity of being fraud
+
+
+#WE OBSERVE SIMILAR BEHAVIOUR FOR FEATURES V10 AND V14
+
+#Density plot of Feature V10 for true and fraud transactions
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=V10), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=V10), color = "red", fill = "red", alpha = 0.1)
+
+#Density plot of Feature V14 for true and fraud transactions
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=V14), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=V14), color = "red", fill = "red", alpha = 0.1)
+
+#ANOTHER INTERESTING OBSERVATION IS SEEN FOR V15 AND V25, LETS PLOT THESE BELOW
+
+#Density plot of Feature V15 for true and fraud transactions
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=V15), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=V15), color = "red", fill = "red", alpha = 0.1)
+
+#Density plot of Feature V25 for true and fraud transactions
+
+ggplot() +
+  geom_density(data = credit_data.true,aes(x=V25), color = "green", fill = "green", alpha = 0.1) +
+  geom_density(data = credit_data.false,aes(x=V25), color = "red", fill = "red", alpha = 0.1)
+
+#The graphs for fraud and true transactions overlap considerably for these variables. This indicated that these two variables might not be of much use in prediction of true/fraud transaction
+
+
+
+#STEP 5: DATA CLEANING AND PREPROCESSING
+
+
+#Checking for class imbalance:
+
+
+#We see that the number of fraud transactions is only approx 1 in 600! Very typical imbalanced dataset. This needs to be taken care else would impact our classification. 
+
+#The dataset we are dealing with is an imbalanced dataset since the number of fraud transactions are very less when compared to the number of true transactions. As shown below we have only 492 fraudulent transactions against 284315 true transactions.
+
+
+
+#finding the number of true and fraud transactions
+
+credit_data$Class <- as.factor(credit_data$Class)
+summary(credit_data$Class)
+
+
+
+#The data set needs to be balanced and below are the three key ways on how we can do it:
+
+#Balancing data:
+
+#1. Undersampling : Removing many observations of the majority class
+#2. Oversampling: Create more minority samples 
+#3. Combination of the above two
+
+
+#Splitting dataset to train and test:
+
+
+# Train-Test split of 80:20
+
+set.seed(42, sample.kind = 'Rounding')
+test_index <- createDataPartition(y = credit_data$Class, times = 1,
+                                  p = 0.2, list = FALSE)
+train_set <- credit_data[-test_index,]
+test_set <- credit_data[test_index,]
+nrow(train_set) #Number of observations in training data set
+nrow(test_set) #Number of observations in test data set
+
+
+
+
+#Working on the above mentioned methods to balance the data before building the model
+
+#Method1: Undersampling : Removing many observations of the majority class.
+#We will reduce  the number of legitimate cases and keep it equal to that of fraud cases. However, the disadvantage here is that we end up loosing lots of data points.
+
+
+
+summary(train_set$Class) #We observe that there are 393 observations of fraudulent transactions
+n_fraud <- 393 #Number of true cases in the train dataset
+new_frac_legit <-0.50 #What percentage of the training set do we need true cases to be
+new_n_total <- n_fraud/new_frac_legit 
+undersampling_result <- ovun.sample(Class ~., data = train_set, method ="under", N = new_n_total,seed=2020)
+undersampled_credit <- undersampling_result$data
+table(undersampled_credit$Class)  #We now have equal number of true and false (legit and fraud) cases making it a balanced set for training
+
+#Lets visualise these points in the newly created undersampled data set
+
+ggplot(data=undersampled_credit, aes(x=V1,y=V2,col=Class))+
+  geom_point(position =position_jitter(width=0.1))+
+  theme_bw()
+
+
+#Method2: Oversampling of minority class
+
+#Though we have oversampled to have equal number of legit and fraud observations, in the plot we see more number of legit observations.This is because in oversampling, duplicates have been created for fraud cases. Hence the duplicate points would coincide with the original in the plot, hence giving a visual feel of lesser number of points. We have used the position argument to show the duplicate points on the plot
+
+
+
+n_legit <- 227452 #Number of true cases in the train dataset as seen above
+new_frac_legit <-0.50 #What percentage of the training set do we need true cases to be
+new_n_total <- n_legit/new_frac_legit 
+oversampling_result <- ovun.sample(Class ~., data = train_set, method ="over", N = new_n_total,seed=2020)
+oversampled_credit <- oversampling_result$data
+table(oversampled_credit$Class)  #We now have equal number of true and false (legit and fraud) cases making it a balanced set for training
+
+
+#Lets visualise these points
+
+ggplot(data=oversampled_credit, aes(x=V1,y=V2,col=Class))+
+  geom_point(position =position_jitter(width=0.1))+
+  theme_bw()
+
+
+#Method3: Both oversampling and undersampling
+
+#This method ensures that we do not loose on data points at the same time ensures we have similiar proportion (50% each) of legit and fraudulent cases in the train data set. Please note that we see the number of fraud cases are overlapping each other since they are duplicates
+
+
+new_n <- nrow(train_set) 
+fraction_fraud_new <-0.50 #What percentage of the training set do we need fraud cases to be
+sampling_result <- ovun.sample(Class ~., data = train_set, method ="both", N = new_n, p= fraction_fraud_new,seed=2020)
+train_set <- sampling_result$data
+dim(train_set) #approx equal number of fraud and legit transactions
+prop.table(table(train_set$Class))  #Approx 50% each
+
+
+#Lets visualise these points
+
+ggplot(data=train_set, aes(x=V1,y=V2,col=Class))+
+  geom_point(position =position_jitter(width=0.1))+
+  theme_bw()
+
+
+
+#STEP 6: Data modelling
+
+#We have accounted for the imbalance existing in the data set and have built a balanced data set that can now be used for building data models.Further the data set has been split into training and test in the previous section.
+
+#As described earlier the objective of modelling is to predict fraudulent transactions from the data set. In order to achieve this objective we would be building four models : Logistic Regression, KNN, Decision tree and Random forrest.
+
+#Further, we would be using area under curve as the metric to pick the best model that can be applied to solve this data science problem
+
+
+#MODEL1: LOGISTIC REGRESSION
+
+#As we know the primary objective of a classification model is to predict the probablity of an observation belonging to a class. Logistic regression is a statistical model in which the response variable takes a discrete value and the explanatory variable can be either continuous or discrete.
+
+
+
+train_glm <- train(Class ~ ., method = "glm", data = train_set)  #glm: Generalised Linear model. The left had side would be a logit function and right hand side would be a linear function
+Class_hat_glm <- predict(train_glm, test_set, type = "prob") #Predicting the probablities 
+test_set$pred<- 0L
+test_set$pred[Class_hat_glm[,2]>0.5] <- 1L  # prob>0.5 is assigned to 1 class
+test_set$pred <-factor(test_set$pred )
+confusionMatrix(data = test_set$pred, reference = test_set$Class)  #building confusion matrix
+test_set$Class <- ordered(test_set$Class,levels = c("0","1"))
+test_set$pred <- ordered(test_set$pred,levels = c("0","1"))
+roc <- roc(test_set$Class, test_set$pred) #ROC curve is a plot between sesitivity (true positive rate) on the vertical axis and 1-specificity (false positive rate) on the horizontal axis
+plot(roc)
+auc(roc) #Returns the area under the curve (auc). Model with higher AUC is preferred
+
+
+
+
+
+#MODEL2: KNN (K - Nearest Neighbours)
+
+#K-Nearest Neighbors (KNN) algorithm is a non-parametric, learning algorithm used for regression or classification problems. It is called a non-parametric model since it does not make any assumptions on the underlying data distribution. KNN memorizes the data and classifies new observations by comnparing the training data. 
+
+#Since the computation time is high when using the entire data set, we have scaled the training set to be only 50% of the original train set. We would be loosing on data points however ensures computation is done in a reasonable time frame.
+
+
+
+scaled_train_set <- train_set %>% sample_frac(0.5) #Due to higher computation time we are using only 50% of the train set for building the model
+scaled_test_set <- test_set %>% sample_frac(1.0)
+fit_knn<- knn3(Class ~.,data = scaled_train_set) #Model fitting
+pred_knn <- predict(fit_knn, scaled_test_set, type = "prob") #predicting probablities
+scaled_test_set$pred<- 0L
+scaled_test_set$pred[pred_knn[,2]>0.5] <- 1L # prob>0.5 is assigned to 1 class
+scaled_test_set$pred <-factor(scaled_test_set$pred )
+confusionMatrix(data = scaled_test_set$pred, reference = scaled_test_set$Class) #Building confusion matrix
+scaled_test_set$Class <- ordered(scaled_test_set$Class,levels = c("0","1"))
+scaled_test_set$pred <- ordered(scaled_test_set$pred,levels = c("0","1"))
+roc <- roc(scaled_test_set$Class, scaled_test_set$pred) #ROC curve is a plot between sesitivity (true positive rate) on the vertical axis and 1-specificity (false positive rate) on the horizontal axis
+plot(roc)
+auc(roc) #Returns the area under the curve (auc). Model with higher AUC is preferred
+
+
+
+
+
+#MODEL3: DECISION TREE
+
+#A decision tree is one of the simmplest yet effective models for classification. The best thing about the model is its transprency/interpretability. The domain opens up  logical interpretation when a DT is built. The decision on branching is decided by Gini index or entropy. The R package rpart is used below for building decision tree
+
+
+
+fit_rpart <- rpart(Class ~ ., 
+                   data=train_set, 
+                   method = "class") #Model fitting
+
+Class_hat_rpart <- predict(fit_rpart,test_set) #predicting probablities
+test_set$pred<- 0L
+test_set$pred[Class_hat_rpart[,2]>0.5] <- 1L # prob>0.5 is assigned to 1 class
+test_set$pred <-factor(test_set$pred )
+confusionMatrix(data = test_set$pred, reference = test_set$Class) #Building confusion matrix
+test_set$Class <- ordered(test_set$Class,levels = c("0","1"))
+test_set$pred <- ordered(test_set$pred,levels = c("0","1"))
+roc <- roc(test_set$Class, test_set$pred) #ROC curve is a plot between sesitivity (true positive rate) on the vertical axis and 1-specificity (false positive rate) on the horizontal axis
+plot(roc)
+auc(roc) #Returns the area under the curve (auc). Model with higher AUC is preferred
+rpart.plot(fit_rpart,cex=0.66,extra=3,type=5,box.palette="BuRd") #Plotting the decision tree
+
+```
+
+
+#MODEL4: RANDOM FORREST
+
+#Random forrest as the name suggest builds a bunch of trees to improve model accuracy. Random forrest can help reduce uncertanity in predictions that may exist in a decision tree. The R package randomForest gives good Random Forests with properly set tuning parameters:
+
+#1) ntree = 10 to 100 
+#2) maxnodes = 30 to 70 
+
+#Randomly picked up values of 39 trees and 44 maxnodes have been taken for building the model. These tuning parameters can be decided through Gridsearch, however given the very high computation time involved, for this project we have picked these values by random.
+
+
+fit_rf <- randomForest(Class ~., data = train_set,  importance = TRUE, ntree=39, maxnodes=44) #fitting the model
+Class_hat_rf <- predict(fit_rf,test_set,type = "prob") #predicting probablities 
+test_set$pred<- 0L
+test_set$pred[Class_hat_rf[,2] >0.5] <- 1L # prob>0.5 is assigned to 1 class
+test_set$pred <-factor(test_set$pred )
+confusionMatrix(data = test_set$pred, reference = test_set$Class) #Building confusion matrix
+test_set$Class <- ordered(test_set$Class,levels = c("0","1"))
+test_set$pred <- ordered(test_set$pred,levels = c("0","1"))
+roc <- roc(test_set$Class, test_set$pred)  #ROC curve is a plot between sesitivity (true positive rate) on the vertical axis and 1-specificity (false positive rate) on the horizontal axis
+plot(roc)
+auc(roc)  #Returns the area under the curve (auc). Model with higher AUC is preferred
+
+
+
+#STEP 6: RESULTS
+
+
+#We build logsitic regression, KNN, decision tree and random forrest models for prediction of fraudulent/legit classes. Given the large size of the dataset some of these models took considerable time to run when the tuning parameters where set through Gridsearch. Hence, for this final report we have directly input the optimal values for few hyperparameters. 
+
+#The area under curve is used as the metric to evaluate performance of the models. Logistic regression and random forrest provides us with the best auc figures of 0.9429 and 0.9382 respectively. A look at the confusion matrix tells us that we are able to correctly classify about 90.9% and 87.8% respectively of the fraudulent transactions through these models.  
+
+
+#STEP 7: CONCLUSION
+
+#a) Summary: Through this project we learnt on how to identify fraudulent transaction from a credit card transactions data set. The challenging part was the high imbalance which existing in the data set. However, we were able to solve for it through balancing methodologies and preferred to use a combination of oversampling and undersampling methodologies. 
+
+#The data exploration and visualisation gave us good insights around certain features that would be good predictors and on some that does not contribute much to any prediction algorithm. 
+
+#Of the models build, logistic regression and random forrest gave us high value for area under curve and emerged as better predictor algorithms for this project.
+
+#b) Potential Impact: With the increase in digital transactions across the globe fraudulent activities are on the rise. This model has great impact particularly for finacial institutions like banks to prevent fraudulent transactions and hence protect their customers. Being able to predict a possible fraudulent transactions realtime and proceeding with either blocking the transaction, contacting the customer to verify legitimacy or even studying the trends and building further system checks to prevent re-occurance in the future are all practical applications of this model
+
+#c) Limitations: Given the large size of the dataset there are multiple limitation when building the model particularly with respect to the computation power of local machine. We had to manually set values for the tuning parameters to save on the computation time which is definitely not the best practise
+
+#d) Future work: With better computation power we could build much more advanced models like aritificial neural networks, ensemble methodologies, SVM, gradient boosted tree etc that would give us much better results.
+
+
